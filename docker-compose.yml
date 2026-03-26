@@ -1,0 +1,12 @@
+services:
+  interface:
+    container_name: interface
+    build:
+      context:  '.'
+    ports:
+      - "8813:8501"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
