@@ -3,14 +3,21 @@ name = "interface"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.10"
+
+[tool.poetry]
 package-mode = false
-dependencies = [
-    "requests>=2.32.5",
-    "streamlit>=1.54.0",
-    "streamlit-tile>=4.1.0",
-    "pandas>=2.0.0",
-    "pytesseract>=0.3.10",
-    "Pillow>=10.0.0",
-    "PyMuPDF>=1.23.0",
-    "python-docx>=1.1.0",
-]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+requests = "^2.32.5"
+streamlit = "^1.54.0"
+streamlit-tile = "^4.1.0"
+pandas = "^2.0.0"
+pytesseract = "^0.3.10"
+Pillow = "^10.0.0"
+PyMuPDF = "^1.23.0"
+python-docx = "^1.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
