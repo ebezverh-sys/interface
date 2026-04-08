@@ -5,36 +5,41 @@ import uuid
 from adapter import send_to_engine, get_session, logger
 from file_processors import process_file_for_llm, process_file_for_vlm
 
+
 def generate_response(user_input: str) -> str:
     try:
         logger.info(f"Generating response for input: {user_input}...")
-        
-        # Получаем session id, если его нет
+
         if "session_id" not in st.session_state:
             logger.info("Getting new session_id...")
-            st.session_state.session_id = get_session(st.session_state.user_id, st.session_state.platform_channel_url)
+            st.session_state.session_id = get_session(
+                st.session_state.user_id, st.session_state.platform_channel_url
+            )
             logger.info(f"Received session_id: {st.session_state.session_id}")
-        
-        # Собираем метаданные с файлами
+
         meta = {}
-        
-        # Добавляем LLM файл если есть и еще не передавали
+
         if "llm_file" in st.session_state and not st.session_state.get("llm_file_sent", False):
             meta["llm_file"] = st.session_state.llm_file
             st.session_state.llm_file_sent = True
             logger.info("Added LLM file to metadata")
-        
-        # Добавляем VLM файл если есть и еще не передавали
+
         if "vlm_file" in st.session_state and not st.session_state.get("vlm_file_sent", False):
             meta["vlm_file"] = st.session_state.vlm_file
             st.session_state.vlm_file_sent = True
             logger.info("Added VLM file to metadata")
-        
+
         start_time = time.time()
-        api_response = send_to_engine(st.session_state.user_id, st.session_state.session_id, text=user_input, meta=meta, platform_channel_url=st.session_state.platform_channel_url)
+        api_response = send_to_engine(
+            st.session_state.user_id,
+            st.session_state.session_id,
+            text=user_input,
+            meta=meta,
+            platform_channel_url=st.session_state.platform_channel_url,
+        )
         elapsed = time.time() - start_time
         logger.info(f"API response received in {elapsed:.2f}s")
-        
+
         all_messages = []
         if isinstance(api_response, list):
             for response_item in api_response:
@@ -44,7 +49,6 @@ def generate_response(user_input: str) -> str:
                         if "bubble" in item and "value" in item["bubble"]:
                             all_messages.append(item["bubble"]["value"])
         if all_messages:
-            # Заменяем <br/> на переносы строк
             processed_messages = [msg.replace("<br/>", "\n") for msg in all_messages]
             return "\n\n---\n\n".join(processed_messages)
         return f"**API Response:**\n```json\n{str(api_response)}\n```"
@@ -52,41 +56,264 @@ def generate_response(user_input: str) -> str:
         logger.error(f"Error communicating with API: {e}")
         return f"Error communicating with API: {str(e)}"
 
+
 st.set_page_config(
     page_title="Интерфейс к Платформе МВС ИИ",
-    page_icon="",
+    page_icon="💬",
     layout="wide",
 )
 
-st.title("Интерфейс к Платформе МВС ИИ")
-st.markdown("Выберите канал и задайте свой вопрос")
+st.markdown(
+    """
+    <style>
+        body {
+            background-color: #0A050C;
+        }
 
-# Поле для ввода URL на всю ширину сверху
+        .main {
+            background: radial-gradient(circle at top left, #111827 0, #020617 45%, #000000 100%);
+            color: #F9FAFB;
+        }
+
+        .mts-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1.25rem;
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(248, 250, 252, 0.06);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+        }
+
+        .mts-title-block {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .mts-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            color: #F9FAFB;
+        }
+
+        .mts-subtitle {
+            font-size: 0.8rem;
+            color: #9CA3AF;
+        }
+
+        .mts-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.1rem 0.6rem;
+            border-radius: 999px;
+            background: rgba(22, 163, 74, 0.08);
+            border: 1px solid rgba(22, 163, 74, 0.9);
+            font-size: 0.75rem;
+            color: #BBF7D0;
+        }
+
+        .mts-status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: #22C55E;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+        }
+
+        .mts-url-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            min-width: 320px;
+            max-width: 540px;
+        }
+
+        .mts-url-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #9CA3AF;
+        }
+
+        .mts-card {
+            background: rgba(15, 23, 42, 0.92);
+            border-radius: 18px;
+            padding: 0.85rem 1rem 1rem 1rem;
+            border: 1px solid rgba(148, 163, 184, 0.33);
+            box-shadow: 0 18px 35px rgba(15, 23, 42, 0.7);
+            margin-bottom: 0.9rem;
+        }
+
+        .mts-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.3rem;
+        }
+
+        .mts-card-title {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #E5E7EB;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .mts-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.08rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            border: 1px solid rgba(248, 250, 252, 0.12);
+            color: #F9FAFB;
+            background: linear-gradient(135deg, #FF0033 0%, #FF5C7B 55%, #F97316 100%);
+        }
+
+        .mts-card-caption {
+            font-size: 0.8rem;
+            color: #9CA3AF;
+            margin-bottom: 0.4rem;
+        }
+
+        div.stButton > button:first-child {
+            border-radius: 999px;
+            border: none;
+            background: linear-gradient(135deg, #FF0033 0%, #FF5C7B 45%, #F97316 100%);
+            color: #FFFFFF;
+            font-weight: 500;
+            font-size: 0.78rem;
+            padding: 0.35rem 0.95rem;
+            box-shadow: 0 14px 30px rgba(220, 38, 38, 0.45);
+        }
+
+        div.stButton > button:first-child:hover {
+            background: linear-gradient(135deg, #FF2450 0%, #FF6C88 45%, #FB923C 100%);
+        }
+
+        div[data-baseweb="select"] > div {
+            border-radius: 999px;
+        }
+
+        .chat-wrapper {
+            background: radial-gradient(circle at top, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
+            border-radius: 18px;
+            border: 1px solid rgba(30, 64, 175, 0.45);
+            padding: 0.85rem 1rem 0.5rem 1rem;
+            box-shadow: 0 24px 50px rgba(15, 23, 42, 0.9);
+        }
+
+        .chat-message {
+            padding: 0.55rem 0.8rem;
+            border-radius: 14px;
+            margin-bottom: 0.45rem;
+            max-width: 92%;
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
+        .chat-user {
+            margin-left: auto;
+            background: linear-gradient(135deg, #0F172A 0%, #020617 45%);
+            border: 1px solid rgba(148, 163, 184, 0.7);
+        }
+
+        .chat-assistant {
+            margin-right: auto;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+        }
+
+        .chat-timestamp {
+            font-size: 0.7rem;
+            color: #6B7280;
+            margin-top: 0.08rem;
+        }
+
+        .stChatInputContainer textarea {
+            border-radius: 999px !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="mts-topbar">
+        <div class="mts-title-block">
+            <div class="mts-title">Интерфейс к Платформе МВС ИИ</div>
+            <div class="mts-subtitle">MTS AI · Cotype_Pro · Cotype_VL</div>
+            <div class="mts-status-pill">
+                <span class="mts-status-dot"></span>
+                Доступ к платформе активен
+            </div>
+        </div>
+        <div class="mts-url-wrapper">
+            <div class="mts-url-label">URL канала платформы</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 if "platform_channel_url" not in st.session_state:
     st.session_state.platform_channel_url = "https://http-adapter-demo03.mws.ai.local/api/557cfd75-6f18-4e48-9af8-de9a2c40cbe6"
 
 st.session_state.platform_channel_url = st.text_input(
-    "URL канала платформы",
+    "",
     value=st.session_state.platform_channel_url,
     help="Полный адрес канала для подключения к API",
-    key="platform_channel_url_input"
+    key="platform_channel_url_input",
 )
 
-# Создаем колонки: 1/4 для настроек, 3/4 для чата
 settings_col, chat_col = st.columns([1, 3])
 
 with settings_col:
-    # Блок для Cotype_Pro файлов
-    st.header("📄 Файлы для Cotype_Pro")
-    st.markdown("*Текст, таблицы, PDF (OCR)*")
-    
+    st.markdown(
+        """
+        <div class="mts-card">
+            <div class="mts-card-header">
+                <div class="mts-card-title">
+                    📄 Файлы для Cotype_Pro
+                    <span class="mts-chip">LLM</span>
+                </div>
+            </div>
+            <div class="mts-card-caption">
+                Текст, таблицы, PDF (OCR). Данные используются как контекст для Pro‑модели.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     llm_uploaded_file = st.file_uploader(
         "Загрузите файл",
-        type=["txt", "md", "csv", "xlsx", "xls", "pdf", "docx", "json", "xml", "py", "js", "html", "css"],
+        type=[
+            "txt",
+            "md",
+            "csv",
+            "xlsx",
+            "xls",
+            "pdf",
+            "docx",
+            "json",
+            "xml",
+            "py",
+            "js",
+            "html",
+            "css",
+        ],
         key="llm_file_uploader",
-        help="Поддерживаемые форматы: текстовые, таблицы, PDF, документы"
+        help="Поддерживаемые форматы: текстовые, таблицы, PDF, документы",
     )
-    
+
     if llm_uploaded_file is not None:
         with st.spinner("Обработка файла..."):
             processed_content, error = process_file_for_llm(llm_uploaded_file)
@@ -96,26 +323,37 @@ with settings_col:
                 st.session_state.llm_file = processed_content
                 st.success("✅ Файл обработан и готов к отправке")
                 st.text_area("Предпросмотр:", processed_content, height=200)
-    
+
     if "llm_file" in st.session_state:
         st.info("📋 LLM файл готов к отправке")
         if st.button("🗑️ Удалить LLM файл", key="clear_llm"):
             del st.session_state.llm_file
             st.rerun()
-    
-    st.markdown("---")
-    
-    # Блок для Cotype_VL файлов
-    st.header("🖼️ Файлы для Cotype_VL")
-    st.markdown("*Изображения, PDF (base64)*")
-    
+
+    st.markdown(
+        """
+        <div class="mts-card">
+            <div class="mts-card-header">
+                <div class="mts-card-title">
+                    🖼️ Файлы для Cotype_VL
+                    <span class="mts-chip">VLM</span>
+                </div>
+            </div>
+            <div class="mts-card-caption">
+                Изображения и PDF конвертируются в единый base64‑вид для визуальной модели.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     vlm_uploaded_file = st.file_uploader(
         "Загрузите файл",
         type=["png", "jpg", "jpeg", "gif", "bmp", "webp", "pdf"],
         key="vlm_file_uploader",
-        help="Поддерживаемые форматы: изображения, PDF"
+        help="Поддерживаемые форматы: изображения, PDF",
     )
-    
+
     if vlm_uploaded_file is not None:
         with st.spinner("Конвертация в base64..."):
             base64_content, error = process_file_for_vlm(vlm_uploaded_file)
@@ -124,34 +362,40 @@ with settings_col:
             else:
                 st.session_state.vlm_file = base64_content
                 st.success("✅ Файл сконвертирован в base64")
-                st.text_area("Base64 (первые 200 символов):", base64_content[:200] + "...", height=100)
-    
+                st.text_area(
+                    "Base64 (первые 200 символов):", base64_content[:200] + "...", height=100
+                )
+
     if "vlm_file" in st.session_state:
         st.info("🖼️ VLM файл готов к отправке")
         if st.button("🗑️ Удалить VLM файл", key="clear_vlm"):
             del st.session_state.vlm_file
-            # Сбрасываем флаг предпросмотра для следующего файла (временно отключен)
-            # if "vlm_preview_shown" in st.session_state:
-            #     del st.session_state.vlm_preview_shown
             st.rerun()
-    
-    st.markdown("---")
-    
-    # Блок настроек - перемещен в самый низ
-    st.header("⚙️ Настройки")
-    
-    # Кнопка очистки чата
+
+    st.markdown(
+        """
+        <div class="mts-card">
+            <div class="mts-card-header">
+                <div class="mts-card-title">
+                    ⚙️ Настройки
+                </div>
+            </div>
+            <div class="mts-card-caption">
+                Управляйте сессией диалога и контекстом файлов.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     if st.button("🗑️ Очистить чат", key="clear_chat"):
         st.session_state.messages = []
-        # Сбрасываем session_id при очистке чата
         if "session_id" in st.session_state:
             del st.session_state.session_id
-        # Сбрасываем файлы
         if "llm_file" in st.session_state:
             del st.session_state.llm_file
         if "vlm_file" in st.session_state:
             del st.session_state.vlm_file
-        # Сбрасываем флаги отправки файлов
         if "llm_file_sent" in st.session_state:
             del st.session_state.llm_file_sent
         if "vlm_file_sent" in st.session_state:
@@ -159,87 +403,66 @@ with settings_col:
         st.rerun()
 
 with chat_col:
-    # ВРЕМЕННЫЙ ФУНКЦИОНАЛ: Предпросмотр обработанного изображения (временно отключен)
-    # if "vlm_file" in st.session_state and "vlm_preview_shown" not in st.session_state:
-    #     st.markdown("---")
-    #     st.markdown("### 🖼️ Предпросмотр обработанного изображения (временно)")
-    #     
-    #     try:
-    #         import io
-    #         from PIL import Image
-    #         import base64
-    #         
-    #         base64_content = st.session_state.vlm_file
-    #         base64_data = base64_content.split(',')[1]
-    #         img_bytes = base64.b64decode(base64_data)
-    #         img = Image.open(io.BytesIO(img_bytes))
-    #         
-    #         st.image(img, caption="Обработанное изображение для VLM", use_column_width=True)
-    #         st.info(f"Размер изображения: {img.width}x{img.height} px")
-    #         
-    #         # Помечаем, что предпросмотр уже показан
-    #         st.session_state.vlm_preview_shown = True
-    #         
-    #     except Exception as e:
-    #         st.warning(f"Не удалось показать предпросмотр: {e}")
-    #     
-    #     st.markdown("---")
-    
     if "user_id" not in st.session_state:
         st.session_state.user_id = str(uuid.uuid4())
         logger.info(f"New session started, user_id: {st.session_state.user_id}")
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Отображаем сообщения
+    st.markdown('<div class="chat-wrapper">', unsafe_allow_html=True)
     message_container = st.container()
     with message_container:
         for msg in st.session_state.messages:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-                if "timestamp" in msg:
-                    st.caption(msg["timestamp"].strftime('%H:%M:%S'))
+            role_class = "chat-user" if msg["role"] == "user" else "chat-assistant"
+            content = msg["content"]
+            timestamp = (
+                msg["timestamp"].strftime("%H:%M:%S") if "timestamp" in msg else ""
+            )
+            st.markdown(
+                f'<div class="chat-message {role_class}">{content}</div>'
+                + (f'<div class="chat-timestamp">{timestamp}</div>' if timestamp else ""),
+                unsafe_allow_html=True,
+            )
 
-    # Поле ввода всегда внизу
-    if prompt := st.chat_input("Введите ваше сообщение..."):
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    prompt = st.chat_input("Сформулируйте запрос к платформе МВС ИИ...")
+    if prompt:
         logger.info(f"User input: {prompt[:50]}...")
-        
-        # Добавляем сообщение пользователя
+
         user_timestamp = datetime.datetime.now()
-        st.session_state.messages.append({
-            "role": "user",
-            "content": prompt,
-            "timestamp": user_timestamp
-        })
-        
-        # Показываем сообщение пользователя сразу
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": prompt,
+                "timestamp": user_timestamp,
+            }
+        )
+
         with st.chat_message("user"):
             st.markdown(prompt)
-            st.caption(user_timestamp.strftime('%H:%M:%S'))
-        
-        # Генерируем ответ с эффектом печатания
+            st.caption(user_timestamp.strftime("%H:%M:%S"))
+
         with st.chat_message("assistant"):
             placeholder = st.empty()
             full_response = generate_response(prompt)
             displayed = ""
-            
-            # Эффект печати
+
             for word in full_response.split():
                 displayed += word + " "
                 placeholder.markdown(displayed)
                 time.sleep(0.05)
-            
-            # Финальный вывод
+
             placeholder.markdown(full_response)
             timestamp = datetime.datetime.now()
-            placeholder.caption(timestamp.strftime('%H:%M:%S'))
-        
-        # Добавляем ответ ассистента в сессию
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": full_response,
-            "timestamp": timestamp
-        })
-        
-        # Перерисовываем чтобы обновить историю
+            placeholder.caption(timestamp.strftime("%H:%M:%S"))
+
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": full_response,
+                "timestamp": timestamp,
+            }
+        )
+
         st.rerun()
