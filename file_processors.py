@@ -197,7 +197,7 @@ def convert_image_to_base64(uploaded_file) -> str:
         raise Exception(f"Ошибка конвертации изображения: {str(e)}")
 
 def convert_pdf_to_base64(uploaded_file) -> str:
-    """Конвертирует весь PDF в одно изображение с гибридной сеткой"""
+    """Конвертирует PDF в изображение с ограничением на размер"""
     try:
         pdf_bytes = uploaded_file.read()
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -205,23 +205,33 @@ def convert_pdf_to_base64(uploaded_file) -> str:
         if len(doc) == 0:
             raise Exception("PDF не содержит страниц")
         
-        # Создаем универсальное изображение
-        universal_image = pdf_to_universal_grid(pdf_bytes)
+        # Ограничиваем количество страниц
+        max_pages = 10
+        if len(doc) > max_pages:
+            logger.warning(f"PDF имеет {len(doc)} страниц, будет обработано только первые {max_pages}")
         
-        # Конвертируем в base64
+        # Создаем универсальное изображение с ограничением
+        universal_image = pdf_to_universal_grid(pdf_bytes, max_pages=max_pages)
+        
+        # Конвертируем в base64 с JPEG для сжатия
         img_bytes = io.BytesIO()
-        universal_image.save(img_bytes, format='PNG', optimize=True)
+        universal_image.save(img_bytes, format='JPEG', quality=85, optimize=True)
         img_bytes.seek(0)
         
         base64_string = base64.b64encode(img_bytes.read()).decode('utf-8')
         doc.close()
         
-        return f"data:image/png;base64,{base64_string}"
+        # Проверяем размер
+        if len(base64_string) > 5_000_000:  # ~5MB limit
+            raise Exception(f"PDF слишком большой после конвертации: {len(base64_string)} символов. Попробуйте PDF с меньшим количеством страниц.")
+        
+        logger.info(f"PDF конвертирован в base64: {len(base64_string)} символов")
+        return f"data:image/jpeg;base64,{base64_string}"
         
     except Exception as e:
         raise Exception(f"Ошибка конвертации PDF: {str(e)}")
 
-def pdf_to_universal_grid(pdf_bytes, max_width=1200, max_cell_height=800, padding=20):
+def pdf_to_universal_grid(pdf_bytes, max_width=1200, max_cell_height=800, padding=20, max_pages=10):
     """
     Универсальный алгоритм конвертации PDF в изображение с гибридной сеткой
     """
@@ -229,10 +239,13 @@ def pdf_to_universal_grid(pdf_bytes, max_width=1200, max_cell_height=800, paddin
     portrait_pages = []
     landscape_pages = []
     
-    # Анализируем и конвертируем страницы
-    for page_num in range(len(doc)):
+    # Уменьшаем DPI для многостраничных PDF
+    dpi = 100 if len(doc) > 5 else 150
+    
+    # Анализируем и конвертируем страницы с ограничением
+    for page_num in range(min(len(doc), max_pages)):
         page = doc.load_page(page_num)
-        pix = page.get_pixmap(dpi=150)  # Оптимальный DPI для качества и размера
+        pix = page.get_pixmap(dpi=dpi)
         img = Image.open(io.BytesIO(pix.tobytes("png")))
         
         # Классифицируем по ориентации с порогом

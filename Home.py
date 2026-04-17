@@ -2,6 +2,8 @@ import streamlit as st
 import time
 import datetime
 import uuid
+import base64
+from pathlib import Path
 from adapter import send_to_engine, get_session, logger
 from file_processors import process_file_for_llm, process_file_for_vlm
 
@@ -30,7 +32,7 @@ def generate_response(user_input: str) -> str:
             logger.info("Added VLM file to metadata")
 
         start_time = time.time()
-        api_response = send_to_engine(
+        api_response, request_json = send_to_engine(
             st.session_state.user_id,
             st.session_state.session_id,
             text=user_input,
@@ -39,6 +41,10 @@ def generate_response(user_input: str) -> str:
         )
         elapsed = time.time() - start_time
         logger.info(f"API response received in {elapsed:.2f}s")
+
+        # Сохраняем отправляемый JSON для отладки
+        st.session_state.last_request_json = request_json
+        st.session_state.last_response_json = api_response
 
         all_messages = []
         if isinstance(api_response, list):
@@ -57,6 +63,15 @@ def generate_response(user_input: str) -> str:
         return f"Error communicating with API: {str(e)}"
 
 
+def get_local_logo_data_uri() -> str:
+    logo_path = Path(__file__).parent / "assets" / "logo-mws.svg"
+    if not logo_path.exists():
+        return ""
+    logo_bytes = logo_path.read_bytes()
+    logo_b64 = base64.b64encode(logo_bytes).decode("utf-8")
+    return f"data:image/svg+xml;base64,{logo_b64}"
+
+
 st.set_page_config(
     page_title="Интерфейс к Платформе МВС ИИ",
     page_icon="💬",
@@ -67,12 +82,12 @@ st.markdown(
     """
     <style>
         body {
-            background-color: #0A050C;
+            background-color: #F5F5F5;
         }
 
         .main {
-            background: radial-gradient(circle at top left, #111827 0, #020617 45%, #000000 100%);
-            color: #F9FAFB;
+            background: #F5F5F5;
+            color: #1F2937;
         }
 
         .mts-topbar {
@@ -82,9 +97,25 @@ st.markdown(
             padding: 0.75rem 1.25rem;
             border-radius: 16px;
             margin-bottom: 1rem;
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid rgba(248, 250, 252, 0.06);
-            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .mts-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        .mts-logo {
+            width: 84px;
+            height: 84px;
+            object-fit: contain;
+            border-radius: 10px;
+            background: #FFFFFF;
+            padding: 0.15rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .mts-title-block {
@@ -97,12 +128,12 @@ st.markdown(
             font-size: 1.1rem;
             font-weight: 600;
             letter-spacing: 0.03em;
-            color: #F9FAFB;
+            color: #1F2937;
         }
 
         .mts-subtitle {
             font-size: 0.8rem;
-            color: #9CA3AF;
+            color: #6B7280;
         }
 
         .mts-status-pill {
@@ -111,10 +142,10 @@ st.markdown(
             gap: 0.35rem;
             padding: 0.1rem 0.6rem;
             border-radius: 999px;
-            background: rgba(22, 163, 74, 0.08);
-            border: 1px solid rgba(22, 163, 74, 0.9);
+            background: #DCFCE7;
+            border: 1px solid #22C55E;
             font-size: 0.75rem;
-            color: #BBF7D0;
+            color: #166534;
         }
 
         .mts-status-dot {
@@ -137,15 +168,15 @@ st.markdown(
             font-size: 0.72rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            color: #9CA3AF;
+            color: #6B7280;
         }
 
         .mts-card {
-            background: rgba(15, 23, 42, 0.92);
+            background: #FFFFFF;
             border-radius: 18px;
             padding: 0.85rem 1rem 1rem 1rem;
-            border: 1px solid rgba(148, 163, 184, 0.33);
-            box-shadow: 0 18px 35px rgba(15, 23, 42, 0.7);
+            border: 1px solid #E5E7EB;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
             margin-bottom: 0.9rem;
         }
 
@@ -159,7 +190,7 @@ st.markdown(
         .mts-card-title {
             font-size: 0.88rem;
             font-weight: 600;
-            color: #E5E7EB;
+            color: #1F2937;
             display: flex;
             align-items: center;
             gap: 0.35rem;
@@ -171,14 +202,14 @@ st.markdown(
             padding: 0.08rem 0.55rem;
             border-radius: 999px;
             font-size: 0.7rem;
-            border: 1px solid rgba(248, 250, 252, 0.12);
-            color: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            color: #FFFFFF;
             background: linear-gradient(135deg, #FF0033 0%, #FF5C7B 55%, #F97316 100%);
         }
 
         .mts-card-caption {
             font-size: 0.8rem;
-            color: #9CA3AF;
+            color: #6B7280;
             margin-bottom: 0.4rem;
         }
 
@@ -190,7 +221,7 @@ st.markdown(
             font-weight: 500;
             font-size: 0.78rem;
             padding: 0.35rem 0.95rem;
-            box-shadow: 0 14px 30px rgba(220, 38, 38, 0.45);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         div.stButton > button:first-child:hover {
@@ -202,11 +233,11 @@ st.markdown(
         }
 
         .chat-wrapper {
-            background: radial-gradient(circle at top, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
+            background: #FFFFFF;
             border-radius: 18px;
-            border: 1px solid rgba(30, 64, 175, 0.45);
+            border: 1px solid #E5E7EB;
             padding: 0.85rem 1rem 0.5rem 1rem;
-            box-shadow: 0 24px 50px rgba(15, 23, 42, 0.9);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
 
         .chat-message {
@@ -220,14 +251,14 @@ st.markdown(
 
         .chat-user {
             margin-left: auto;
-            background: linear-gradient(135deg, #0F172A 0%, #020617 45%);
-            border: 1px solid rgba(148, 163, 184, 0.7);
+            background: #F3F4F6;
+            border: 1px solid #D1D5DB;
         }
 
         .chat-assistant {
             margin-right: auto;
-            background: rgba(15, 23, 42, 0.96);
-            border: 1px solid rgba(56, 189, 248, 0.4);
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
         }
 
         .chat-timestamp {
@@ -245,14 +276,21 @@ st.markdown(
 )
 
 st.markdown(
-    """
+    f"""
     <div class="mts-topbar">
-        <div class="mts-title-block">
-            <div class="mts-title">Интерфейс к Платформе МВС ИИ</div>
-            <div class="mts-subtitle">MTS AI · Cotype_Pro · Cotype_VL</div>
-            <div class="mts-status-pill">
-                <span class="mts-status-dot"></span>
-                Доступ к платформе активен
+        <div class="mts-brand">
+            <img
+                class="mts-logo"
+                src="{get_local_logo_data_uri()}"
+                alt="Логотип МВС ИИ"
+            />
+            <div class="mts-title-block">
+                <div class="mts-title">Интерфейс к Платформе МВС ИИ</div>
+                <div class="mts-subtitle">MTS AI · Cotype_Pro · Cotype_VL</div>
+                <div class="mts-status-pill">
+                    <span class="mts-status-dot"></span>
+                    Доступ к платформе активен
+                </div>
             </div>
         </div>
         <div class="mts-url-wrapper">
@@ -264,7 +302,7 @@ st.markdown(
 )
 
 if "platform_channel_url" not in st.session_state:
-    st.session_state.platform_channel_url = "https://http-adapter-demo03.mws.ai.local/api/557cfd75-6f18-4e48-9af8-de9a2c40cbe6"
+    st.session_state.platform_channel_url = "https://thrillingly-affordable-hippo.cloudpub.ru/api/e72f886e-4b62-47bb-894e-5622f3ea5ce3"
 
 st.session_state.platform_channel_url = st.text_input(
     "",
@@ -273,7 +311,7 @@ st.session_state.platform_channel_url = st.text_input(
     key="platform_channel_url_input",
 )
 
-settings_col, chat_col = st.columns([1, 3])
+settings_col, chat_col, debug_col = st.columns([1, 3, 1])
 
 with settings_col:
     st.markdown(
@@ -321,6 +359,7 @@ with settings_col:
                 st.error(error)
             else:
                 st.session_state.llm_file = processed_content
+                st.session_state.llm_file_sent = False
                 st.success("✅ Файл обработан и готов к отправке")
                 st.text_area("Предпросмотр:", processed_content, height=200)
 
@@ -361,6 +400,7 @@ with settings_col:
                 st.error(error)
             else:
                 st.session_state.vlm_file = base64_content
+                st.session_state.vlm_file_sent = False
                 st.success("✅ Файл сконвертирован в base64")
                 st.text_area(
                     "Base64 (первые 200 символов):", base64_content[:200] + "...", height=100
@@ -400,7 +440,52 @@ with settings_col:
             del st.session_state.llm_file_sent
         if "vlm_file_sent" in st.session_state:
             del st.session_state.vlm_file_sent
+        if "last_request_json" in st.session_state:
+            del st.session_state.last_request_json
+        if "last_response_json" in st.session_state:
+            del st.session_state.last_response_json
         st.rerun()
+
+with debug_col:
+    st.markdown(
+        """
+        <div class="mts-card">
+            <div class="mts-card-header">
+                <div class="mts-card-title">
+                    🔍 Отладка
+                </div>
+            </div>
+            <div class="mts-card-caption">
+                Отправляемые и получаемые JSON
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if "last_request_json" in st.session_state:
+        st.markdown("### 📤 Отправленный JSON")
+        with st.expander("Показать запрос", expanded=True):
+            st.json(st.session_state.last_request_json)
+    else:
+        st.info("📤 Нет отправленных запросов")
+
+    if "last_response_json" in st.session_state:
+        st.markdown("### 📥 Полученный JSON")
+        with st.expander("Показать ответ", expanded=True):
+            st.json(st.session_state.last_response_json)
+    else:
+        st.info("📥 Нет полученных ответов")
+
+    if "session_id" in st.session_state:
+        st.markdown("### 🆔 Session ID")
+        st.code(st.session_state.session_id, language="text")
+    else:
+        st.info("🆔 Session ID не создан")
+
+    if "user_id" in st.session_state:
+        st.markdown("### 👤 User ID")
+        st.code(st.session_state.user_id, language="text")
 
 with chat_col:
     if "user_id" not in st.session_state:
